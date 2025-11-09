@@ -435,8 +435,10 @@ router.get("/signature", (req, res) => {
   try {
     const timestamp = Math.floor(Date.now() / 1000);
     const folder = "uploads";
+    const type = "upload"; // ensures files are public
 
-    const signatureString = `folder=${folder}&timestamp=${timestamp}${process.env.CLOUDINARY_API_SECRET}`;
+    // IMPORTANT: Parameters must be in alphabetical order for signature
+    const signatureString = `folder=${folder}&timestamp=${timestamp}&type=${type}${process.env.CLOUDINARY_API_SECRET}`;
     const signature = crypto
       .createHash("sha1")
       .update(signatureString)
@@ -446,6 +448,7 @@ router.get("/signature", (req, res) => {
       signature,
       timestamp,
       folder,
+      type,
       apiKey: process.env.CLOUDINARY_API_KEY,
       cloudName: process.env.CLOUDINARY_CLOUD_NAME,
     });
