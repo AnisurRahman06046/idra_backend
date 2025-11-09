@@ -504,7 +504,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
 });
 
 // --------------------
-// Upload with SSE progress tracking
+// Upload with SSE progress tracking (smooth incremental progress)
 // --------------------
 router.post("/upload-progress", upload.single("file"), async (req, res) => {
   try {
@@ -519,9 +519,17 @@ router.post("/upload-progress", upload.single("file"), async (req, res) => {
     const resourceType = file.mimetype.startsWith("image/") ? "image" : "raw";
     const fileSize = file.buffer.length;
     let uploadedBytes = 0;
+    let lastSentProgress = 30;
+    let lastSentTime = Date.now();
 
     const sendProgress = (percent, message) => {
-      res.write(`data: ${JSON.stringify({ progress: percent, message })}\n\n`);
+      const now = Date.now();
+      // Throttle: only send if progress increased AND at least 50ms passed
+      if (percent > lastSentProgress && (now - lastSentTime) >= 50) {
+        res.write(`data: ${JSON.stringify({ progress: percent, message })}\n\n`);
+        lastSentProgress = percent;
+        lastSentTime = now;
+      }
     };
 
     // Send initial progress
@@ -541,7 +549,7 @@ router.post("/upload-progress", upload.single("file"), async (req, res) => {
           }
         );
 
-        // Track upload progress
+        // Track upload progress with throttling
         const readStream = streamifier.createReadStream(fileBuffer);
 
         readStream.on("data", (chunk) => {
@@ -550,13 +558,19 @@ router.post("/upload-progress", upload.single("file"), async (req, res) => {
           sendProgress(percent, "Uploading to Cloudinary...");
         });
 
+        readStream.on("end", () => {
+          // Ensure we send 90% when stream ends
+          res.write(`data: ${JSON.stringify({ progress: 90, message: "Processing..." })}\n\n`);
+          lastSentProgress = 90;
+        });
+
         readStream.pipe(stream);
       });
 
     const result = await streamUpload(file.buffer);
 
     // Save to database
-    sendProgress(95, "Saving to database...");
+    res.write(`data: ${JSON.stringify({ progress: 95, message: "Saving to database..." })}\n\n`);
 
     const savedFile = await File.create({
       url: result.secure_url,
@@ -566,8 +580,7 @@ router.post("/upload-progress", upload.single("file"), async (req, res) => {
     });
 
     // Send completion
-    sendProgress(100, "Upload complete!");
-    res.write(`data: ${JSON.stringify({ progress: 100, file: savedFile, done: true })}\n\n`);
+    res.write(`data: ${JSON.stringify({ progress: 100, message: "Upload complete!", file: savedFile, done: true })}\n\n`);
     res.end();
   } catch (err) {
     console.error(err);
