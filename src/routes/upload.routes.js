@@ -316,6 +316,22 @@ router.get("/signature", (req, res) => {
   }
 });
 
+// Save uploaded file metadata
+router.post("/save", async (req, res) => {
+  try {
+    const { url, type, mimetype, originalName } = req.body;
+    if (!url || !type || !mimetype || !originalName)
+      return res.status(400).json({ message: "Invalid data" });
+
+    const savedFile = await File.create({ url, type, mimetype, originalName });
+    res.json(savedFile);
+  } catch (err) {
+    res
+      .status(500)
+      .json({ message: "Failed to save file", error: err.message });
+  }
+});
+
 // Upload via backend (stream)
 router.post("/upload", upload.single("file"), async (req, res) => {
   try {
