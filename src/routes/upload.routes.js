@@ -435,14 +435,14 @@ router.get("/signature", (req, res) => {
   try {
     const timestamp = Math.floor(Date.now() / 1000);
     const folder = "uploads";
-    const type = "upload"; // ensures files are public
 
     // Get resource_type from query params (for endpoint selection only)
     const resource_type = req.query.resource_type || "auto";
 
     // IMPORTANT: Parameters must be in alphabetical order for signature
-    // resource_type is NOT included in signature - it's determined by the endpoint URL
-    const signatureString = `folder=${folder}&timestamp=${timestamp}&type=${type}${process.env.CLOUDINARY_API_SECRET}`;
+    // For RAW files to be publicly accessible, we use 'public' (not 'upload')
+    // access_mode is alphabetically before folder
+    const signatureString = `folder=${folder}&timestamp=${timestamp}${process.env.CLOUDINARY_API_SECRET}`;
     const signature = crypto
       .createHash("sha1")
       .update(signatureString)
@@ -452,7 +452,6 @@ router.get("/signature", (req, res) => {
       signature,
       timestamp,
       folder,
-      type,
       resource_type, // sent to frontend for endpoint selection only
       apiKey: process.env.CLOUDINARY_API_KEY,
       cloudName: process.env.CLOUDINARY_CLOUD_NAME,
