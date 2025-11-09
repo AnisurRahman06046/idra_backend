@@ -536,7 +536,7 @@ router.get("/all", async (req, res) => {
 });
 
 // --------------------
-// Serve PDF: redirect to Cloudinary URL
+// Serve PDF inline (stream from Cloudinary with proper headers)
 // --------------------
 router.get("/pdf/:id", async (req, res) => {
   try {
@@ -544,7 +544,22 @@ router.get("/pdf/:id", async (req, res) => {
     if (!file) return res.status(404).send("File not found");
     if (file.type !== "raw") return res.status(400).send("Not a PDF");
 
-    res.redirect(file.url); // public PDF URL works now
+    // Import axios dynamically
+    const axios = (await import("axios")).default;
+
+    // Fetch PDF from Cloudinary
+    const response = await axios.get(file.url, { responseType: "stream" });
+
+    // Set headers to display inline in browser
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${file.originalName}"`
+    );
+    res.setHeader("Cache-Control", "public, max-age=31536000");
+
+    // Pipe PDF to browser
+    response.data.pipe(res);
   } catch (err) {
     console.error(err);
     res.status(500).send("Failed to fetch PDF");
