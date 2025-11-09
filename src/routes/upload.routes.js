@@ -524,8 +524,8 @@ router.post("/upload-progress", upload.single("file"), async (req, res) => {
 
     const sendProgress = (percent, message) => {
       const now = Date.now();
-      // Throttle: only send if progress increased AND at least 50ms passed
-      if (percent > lastSentProgress && (now - lastSentTime) >= 50) {
+      // Throttle: only send if progress increased AND at least 100ms passed
+      if (percent > lastSentProgress && (now - lastSentTime) >= 100) {
         res.write(`data: ${JSON.stringify({ progress: percent, message })}\n\n`);
         lastSentProgress = percent;
         lastSentTime = now;
@@ -550,7 +550,9 @@ router.post("/upload-progress", upload.single("file"), async (req, res) => {
         );
 
         // Track upload progress with throttling
-        const readStream = streamifier.createReadStream(fileBuffer);
+        const readStream = streamifier.createReadStream(fileBuffer, {
+          highWaterMark: 16384, // 16KB chunks for more granular progress
+        });
 
         readStream.on("data", (chunk) => {
           uploadedBytes += chunk.length;
