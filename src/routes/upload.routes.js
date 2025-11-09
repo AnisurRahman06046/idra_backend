@@ -462,7 +462,7 @@ router.get("/signature", (req, res) => {
 });
 
 // --------------------
-// Upload file to Cloudinary via backend
+// Upload file to Cloudinary via backend (original - kept for compatibility)
 // --------------------
 router.post("/upload", upload.single("file"), async (req, res) => {
   try {
@@ -500,6 +500,79 @@ router.post("/upload", upload.single("file"), async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Upload failed", error: err.message });
+  }
+});
+
+// --------------------
+// Upload with SSE progress tracking
+// --------------------
+router.post("/upload-progress", upload.single("file"), async (req, res) => {
+  try {
+    const file = req.file;
+    if (!file) return res.status(400).json({ message: "No file uploaded" });
+
+    // Set SSE headers
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    const resourceType = file.mimetype.startsWith("image/") ? "image" : "raw";
+    const fileSize = file.buffer.length;
+    let uploadedBytes = 0;
+
+    const sendProgress = (percent, message) => {
+      res.write(`data: ${JSON.stringify({ progress: percent, message })}\n\n`);
+    };
+
+    // Send initial progress
+    sendProgress(30, "Starting Cloudinary upload...");
+
+    const streamUpload = (fileBuffer) =>
+      new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            resource_type: resourceType,
+            folder: "uploads",
+            type: "upload",
+          },
+          (error, result) => {
+            if (result) resolve(result);
+            else reject(error);
+          }
+        );
+
+        // Track upload progress
+        const readStream = streamifier.createReadStream(fileBuffer);
+
+        readStream.on("data", (chunk) => {
+          uploadedBytes += chunk.length;
+          const percent = Math.min(30 + Math.round((uploadedBytes / fileSize) * 60), 90);
+          sendProgress(percent, "Uploading to Cloudinary...");
+        });
+
+        readStream.pipe(stream);
+      });
+
+    const result = await streamUpload(file.buffer);
+
+    // Save to database
+    sendProgress(95, "Saving to database...");
+
+    const savedFile = await File.create({
+      url: result.secure_url,
+      type: resourceType,
+      mimetype: file.mimetype,
+      originalName: file.originalname,
+    });
+
+    // Send completion
+    sendProgress(100, "Upload complete!");
+    res.write(`data: ${JSON.stringify({ progress: 100, file: savedFile, done: true })}\n\n`);
+    res.end();
+  } catch (err) {
+    console.error(err);
+    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+    res.end();
   }
 });
 
