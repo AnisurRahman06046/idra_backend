@@ -381,22 +381,35 @@ router.get("/all", async (req, res) => {
 });
 
 // Serve PDF inline
+// router.get("/pdf/:id", async (req, res) => {
+//   try {
+//     const file = await File.findById(req.params.id);
+//     if (!file) return res.status(404).send("File not found");
+//     if (file.type !== "raw") return res.status(400).send("Not a PDF");
+
+//     const axios = (await import("axios")).default;
+//     const response = await axios.get(file.url, { responseType: "stream" });
+
+//     res.setHeader("Content-Type", "application/pdf");
+//     res.setHeader(
+//       "Content-Disposition",
+//       `inline; filename="${file.originalName}"`
+//     );
+
+//     response.data.pipe(res);
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).send("Failed to fetch PDF");
+//   }
+// });
+// Serve PDF by redirecting
 router.get("/pdf/:id", async (req, res) => {
   try {
     const file = await File.findById(req.params.id);
     if (!file) return res.status(404).send("File not found");
     if (file.type !== "raw") return res.status(400).send("Not a PDF");
 
-    const axios = (await import("axios")).default;
-    const response = await axios.get(file.url, { responseType: "stream" });
-
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader(
-      "Content-Disposition",
-      `inline; filename="${file.originalName}"`
-    );
-
-    response.data.pipe(res);
+    res.redirect(file.url); // redirect to Cloudinary URL
   } catch (err) {
     console.error(err);
     res.status(500).send("Failed to fetch PDF");
