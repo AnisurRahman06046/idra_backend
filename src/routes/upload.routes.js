@@ -13,11 +13,14 @@
 //     const file = req.file;
 //     if (!file) return res.status(400).json({ message: "No file uploaded" });
 
+//     // Determine resource_type: use 'image' or 'raw'
+//     const resourceType = file.mimetype.startsWith("image/") ? "image" : "raw";
+
 //     // Upload to Cloudinary using stream
 //     const streamUpload = (fileBuffer) => {
 //       return new Promise((resolve, reject) => {
 //         const stream = cloudinary.uploader.upload_stream(
-//           { resource_type: "auto" },
+//           { resource_type: resourceType },
 //           (error, result) => {
 //             if (result) resolve(result);
 //             else reject(error);
@@ -36,7 +39,6 @@
 //       originalName: file.originalname,
 //     });
 
-//     // Respond with saved file
 //     res.json(savedFile);
 //   } catch (err) {
 //     console.error(err);
@@ -63,6 +65,7 @@ import multer from "multer";
 import cloudinary from "../config/cloudinary.js";
 import streamifier from "streamifier";
 import File from "../models/file.model.js";
+import axios from "axios";
 
 const router = express.Router();
 const upload = multer(); // memory storage
@@ -73,12 +76,12 @@ router.post("/upload", upload.single("file"), async (req, res) => {
     const file = req.file;
     if (!file) return res.status(400).json({ message: "No file uploaded" });
 
-    // Determine resource_type: use 'image' or 'raw'
+    // Determine resource_type: image or raw
     const resourceType = file.mimetype.startsWith("image/") ? "image" : "raw";
 
-    // Upload to Cloudinary using stream
-    const streamUpload = (fileBuffer) => {
-      return new Promise((resolve, reject) => {
+    // Upload to Cloudinary
+    const streamUpload = (fileBuffer) =>
+      new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
           { resource_type: resourceType },
           (error, result) => {
@@ -88,14 +91,13 @@ router.post("/upload", upload.single("file"), async (req, res) => {
         );
         streamifier.createReadStream(fileBuffer).pipe(stream);
       });
-    };
 
     const result = await streamUpload(file.buffer);
 
     // Save to MongoDB
     const savedFile = await File.create({
       url: result.secure_url,
-      type: result.resource_type,
+      type: resourceType,
       originalName: file.originalname,
     });
 
@@ -115,6 +117,32 @@ router.get("/all", async (req, res) => {
     res
       .status(500)
       .json({ message: "Failed to fetch files", error: err.message });
+  }
+});
+
+// Serve PDF inline
+router.get("/pdf/:id", async (req, res) => {
+  try {
+    const file = await File.findById(req.params.id);
+    if (!file) return res.status(404).send("File not found");
+
+    if (file.type !== "raw") return res.status(400).send("Not a PDF");
+
+    // Fetch the PDF from Cloudinary
+    const response = await axios.get(file.url, { responseType: "stream" });
+
+    // Set headers to display inline
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${file.originalName}"`
+    );
+
+    // Pipe PDF to browser
+    response.data.pipe(res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Failed to fetch PDF");
   }
 });
 
