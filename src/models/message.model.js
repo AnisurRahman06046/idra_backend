@@ -1,8 +1,13 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
-const messageSchema = new mongoose.Schema({
-  text: { type: String, required: true },
-  createdAt: { type: Date, default: Date.now },
-});
+const fileSchema = new mongoose.Schema(
+  {
+    url: { type: String, required: true },
+    type: { type: String, required: true }, // 'image' or 'raw'
+    mimetype: { type: String, required: true },
+    originalName: { type: String, required: true },
+  },
+  { timestamps: true }
+);
 
-export default mongoose.model('Message', messageSchema);
+export default mongoose.model("File", fileSchema);
