@@ -256,4 +256,34 @@ router.get("/pdf/:id", async (req, res) => {
   }
 });
 
+// --------------------
+// Delete file (removes from DB and Cloudinary)
+// --------------------
+router.delete("/:id", async (req, res) => {
+  try {
+    const file = await File.findById(req.params.id);
+    if (!file) return res.status(404).json({ message: "File not found" });
+
+    // Extract public_id from Cloudinary URL
+    // URL format: https://res.cloudinary.com/cloud_name/resource_type/upload/v123456/folder/public_id.ext
+    const urlParts = file.url.split("/");
+    const filename = urlParts[urlParts.length - 1];
+    const folder = urlParts[urlParts.length - 2];
+    const publicId = `${folder}/${filename.split(".")[0]}`;
+
+    // Delete from Cloudinary
+    await cloudinary.uploader.destroy(publicId, {
+      resource_type: file.type,
+    });
+
+    // Delete from MongoDB
+    await File.findByIdAndDelete(req.params.id);
+
+    res.json({ message: "File deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to delete file", error: err.message });
+  }
+});
+
 export default router;
