@@ -437,8 +437,11 @@ router.get("/signature", (req, res) => {
     const folder = "uploads";
     const type = "upload"; // ensures files are public
 
+    // Get resource_type from query params (default to 'auto')
+    const resource_type = req.query.resource_type || "auto";
+
     // IMPORTANT: Parameters must be in alphabetical order for signature
-    const signatureString = `folder=${folder}&timestamp=${timestamp}&type=${type}${process.env.CLOUDINARY_API_SECRET}`;
+    const signatureString = `folder=${folder}&resource_type=${resource_type}&timestamp=${timestamp}&type=${type}${process.env.CLOUDINARY_API_SECRET}`;
     const signature = crypto
       .createHash("sha1")
       .update(signatureString)
@@ -449,6 +452,7 @@ router.get("/signature", (req, res) => {
       timestamp,
       folder,
       type,
+      resource_type,
       apiKey: process.env.CLOUDINARY_API_KEY,
       cloudName: process.env.CLOUDINARY_CLOUD_NAME,
     });
