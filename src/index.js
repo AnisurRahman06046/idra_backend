@@ -5,13 +5,15 @@ import { connectDB } from "./config/db.js";
 import { connectRabbit } from "./config/rabbit.js";
 import { startConsumer } from "./consumers/message.consumer.js";
 import messageRoutes from "./routes/message.routes.js";
-
+import uploadRoutes from "./routes/upload.routes.js";
 dotenv.config();
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 app.use("/api", messageRoutes);
+app.use("/file/api", uploadRoutes);
+
 app.get("/", (req, res) => {
   res.json({ status: "OK", message: "Server is running 🚀" });
 });
