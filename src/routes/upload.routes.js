@@ -282,6 +282,142 @@
 
 // export default router;
 
+// import express from "express";
+// import multer from "multer";
+// import cloudinary from "../config/cloudinary.js";
+// import streamifier from "streamifier";
+// import File from "../models/file.model.js";
+// import crypto from "crypto";
+
+// const router = express.Router();
+// const upload = multer(); // memory storage
+
+// // Generate signature for frontend
+// router.get("/signature", (req, res) => {
+//   try {
+//     const timestamp = Math.floor(Date.now() / 1000);
+//     const folder = "uploads";
+
+//     const signatureString = `folder=${folder}&timestamp=${timestamp}${process.env.CLOUDINARY_API_SECRET}`;
+//     const signature = crypto
+//       .createHash("sha1")
+//       .update(signatureString)
+//       .digest("hex");
+
+//     res.json({
+//       signature,
+//       timestamp,
+//       folder,
+//       apiKey: process.env.CLOUDINARY_API_KEY,
+//       cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+//     });
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// });
+
+// // Save uploaded file metadata
+// router.post("/save", async (req, res) => {
+//   try {
+//     const { url, type, mimetype, originalName } = req.body;
+//     if (!url || !type || !mimetype || !originalName)
+//       return res.status(400).json({ message: "Invalid data" });
+
+//     const savedFile = await File.create({ url, type, mimetype, originalName });
+//     res.json(savedFile);
+//   } catch (err) {
+//     res
+//       .status(500)
+//       .json({ message: "Failed to save file", error: err.message });
+//   }
+// });
+
+// // Upload via backend (stream)
+// router.post("/upload", upload.single("file"), async (req, res) => {
+//   try {
+//     const file = req.file;
+//     if (!file) return res.status(400).json({ message: "No file uploaded" });
+
+//     const resourceType = file.mimetype.startsWith("image/") ? "image" : "raw";
+
+//     const streamUpload = (fileBuffer) =>
+//       new Promise((resolve, reject) => {
+//         const stream = cloudinary.uploader.upload_stream(
+//           { resource_type: resourceType, folder: "uploads" },
+//           (error, result) => {
+//             if (result) resolve(result);
+//             else reject(error);
+//           }
+//         );
+//         streamifier.createReadStream(fileBuffer).pipe(stream);
+//       });
+
+//     const result = await streamUpload(file.buffer);
+
+//     const savedFile = await File.create({
+//       url: result.secure_url,
+//       type: resourceType,
+//       mimetype: file.mimetype,
+//       originalName: file.originalname,
+//     });
+
+//     res.json(savedFile);
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: "Upload failed", error: err.message });
+//   }
+// });
+
+// // Get all uploaded files
+// router.get("/all", async (req, res) => {
+//   try {
+//     const files = await File.find().sort({ createdAt: -1 });
+//     res.json(files);
+//   } catch (err) {
+//     res
+//       .status(500)
+//       .json({ message: "Failed to fetch files", error: err.message });
+//   }
+// });
+
+// // Serve PDF inline
+// // router.get("/pdf/:id", async (req, res) => {
+// //   try {
+// //     const file = await File.findById(req.params.id);
+// //     if (!file) return res.status(404).send("File not found");
+// //     if (file.type !== "raw") return res.status(400).send("Not a PDF");
+
+// //     const axios = (await import("axios")).default;
+// //     const response = await axios.get(file.url, { responseType: "stream" });
+
+// //     res.setHeader("Content-Type", "application/pdf");
+// //     res.setHeader(
+// //       "Content-Disposition",
+// //       `inline; filename="${file.originalName}"`
+// //     );
+
+// //     response.data.pipe(res);
+// //   } catch (err) {
+// //     console.error(err);
+// //     res.status(500).send("Failed to fetch PDF");
+// //   }
+// // });
+// // Serve PDF by redirecting
+// router.get("/pdf/:id", async (req, res) => {
+//   try {
+//     const file = await File.findById(req.params.id);
+//     if (!file) return res.status(404).send("File not found");
+//     if (file.type !== "raw") return res.status(400).send("Not a PDF");
+
+//     res.redirect(file.url); // redirect to Cloudinary URL
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).send("Failed to fetch PDF");
+//   }
+// });
+
+// export default router;
+
 import express from "express";
 import multer from "multer";
 import cloudinary from "../config/cloudinary.js";
@@ -292,7 +428,9 @@ import crypto from "crypto";
 const router = express.Router();
 const upload = multer(); // memory storage
 
-// Generate signature for frontend
+// --------------------
+// Generate signature for frontend (optional, if you need direct uploads)
+// --------------------
 router.get("/signature", (req, res) => {
   try {
     const timestamp = Math.floor(Date.now() / 1000);
@@ -316,23 +454,9 @@ router.get("/signature", (req, res) => {
   }
 });
 
-// Save uploaded file metadata
-router.post("/save", async (req, res) => {
-  try {
-    const { url, type, mimetype, originalName } = req.body;
-    if (!url || !type || !mimetype || !originalName)
-      return res.status(400).json({ message: "Invalid data" });
-
-    const savedFile = await File.create({ url, type, mimetype, originalName });
-    res.json(savedFile);
-  } catch (err) {
-    res
-      .status(500)
-      .json({ message: "Failed to save file", error: err.message });
-  }
-});
-
-// Upload via backend (stream)
+// --------------------
+// Upload file to Cloudinary via backend
+// --------------------
 router.post("/upload", upload.single("file"), async (req, res) => {
   try {
     const file = req.file;
@@ -343,7 +467,11 @@ router.post("/upload", upload.single("file"), async (req, res) => {
     const streamUpload = (fileBuffer) =>
       new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
-          { resource_type: resourceType, folder: "uploads" },
+          {
+            resource_type: resourceType,
+            folder: "uploads",
+            type: "upload", // ensures file is public
+          },
           (error, result) => {
             if (result) resolve(result);
             else reject(error);
@@ -368,7 +496,27 @@ router.post("/upload", upload.single("file"), async (req, res) => {
   }
 });
 
+// --------------------
+// Save file metadata only (optional)
+// --------------------
+router.post("/save", async (req, res) => {
+  try {
+    const { url, type, mimetype, originalName } = req.body;
+    if (!url || !type || !mimetype || !originalName)
+      return res.status(400).json({ message: "Invalid data" });
+
+    const savedFile = await File.create({ url, type, mimetype, originalName });
+    res.json(savedFile);
+  } catch (err) {
+    res
+      .status(500)
+      .json({ message: "Failed to save file", error: err.message });
+  }
+});
+
+// --------------------
 // Get all uploaded files
+// --------------------
 router.get("/all", async (req, res) => {
   try {
     const files = await File.find().sort({ createdAt: -1 });
@@ -380,36 +528,16 @@ router.get("/all", async (req, res) => {
   }
 });
 
-// Serve PDF inline
-// router.get("/pdf/:id", async (req, res) => {
-//   try {
-//     const file = await File.findById(req.params.id);
-//     if (!file) return res.status(404).send("File not found");
-//     if (file.type !== "raw") return res.status(400).send("Not a PDF");
-
-//     const axios = (await import("axios")).default;
-//     const response = await axios.get(file.url, { responseType: "stream" });
-
-//     res.setHeader("Content-Type", "application/pdf");
-//     res.setHeader(
-//       "Content-Disposition",
-//       `inline; filename="${file.originalName}"`
-//     );
-
-//     response.data.pipe(res);
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).send("Failed to fetch PDF");
-//   }
-// });
-// Serve PDF by redirecting
+// --------------------
+// Serve PDF: redirect to Cloudinary URL
+// --------------------
 router.get("/pdf/:id", async (req, res) => {
   try {
     const file = await File.findById(req.params.id);
     if (!file) return res.status(404).send("File not found");
     if (file.type !== "raw") return res.status(400).send("Not a PDF");
 
-    res.redirect(file.url); // redirect to Cloudinary URL
+    res.redirect(file.url); // public PDF URL works now
   } catch (err) {
     console.error(err);
     res.status(500).send("Failed to fetch PDF");
